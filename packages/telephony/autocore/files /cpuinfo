@@ -7,11 +7,13 @@ CPUFREQ_PATH="/sys/devices/system/cpu/cpufreq"
 THERMAL_PATH="/sys/class/thermal"
 
 cpu_arch="$(awk -F ': ' '/model name/ {print $2}' "$CPUINFO_PATH" | head -n1)"
-[ -n "${cpu_arch}" ] || cpu_arch="?"
+[ -n "${cpu_arch}" ] || cpu_arch="Unknown"
 
 case "$DISTRIB_TARGET" in
 "x86_64"/*)
-    cpu_cores="$(grep "core id" "$CPUINFO_PATH" | sort -u | wc -l)C $(grep -c "processor" "$CPUINFO_PATH")T" ;;
+    cpu_cores=$(grep -c "processor" "$CPUINFO_PATH")
+    [ "$cpu_cores" -gt 0 ] || cpu_cores=1  # Minimal satu inti jika tidak ada informasi inti yang ditemukan
+    ;;
 *)
     echo "Unsupported architecture for this script."
     exit 1
@@ -31,9 +33,9 @@ case "$DISTRIB_TARGET" in
 "x86_64"/*)
     if [ -n "$(uci -q get "wechatpush.config.server_host")" ]; then
         cpu_temp="$(/usr/share/wechatpush/wechatpush soc)°C"
-    elif grep -q "GenuineIntel" "/proc/cpuinfo"; then
+    elif grep -q "GenuineIntel" "$CPUINFO_PATH"; then
         cpu_temp="$(sensors "coretemp-*" 2>"/dev/null" | grep -E "(Package id |Core )" | grep -Eo "\+[0-9.]*°C" | head -n1 | tr -d "+")"
-    elif grep -q "AuthenticAMD" "/proc/cpuinfo"; then
+    elif grep -q "AuthenticAMD" "$CPUINFO_PATH"; then
         cpu_temp="$(sensors "k*temp-*" 2>"/dev/null" | awk '/Tdie/ {print $2}' | head -n1 | tr -d "+")"
     fi
     ;;
@@ -43,10 +45,13 @@ case "$DISTRIB_TARGET" in
     ;;
 esac
 
-if [ -z "$cpu_temp" ] && [ -n "$cpu_freq" ]; then
-    echo -n "$cpu_arch x $cpu_cores ($cpu_freq)"
-elif [ -n "$cpu_temp" ] && [ -n "$cpu_freq" ]; then
-    echo -n "$cpu_arch x $cpu_cores ($cpu_freq, ${cpu_temp})"
+if [ -n "$cpu_freq" ]; then
+    if [ -n "$cpu_temp" ]; then
+        echo -n "$cpu_arch x $cpu_cores ($cpu_freq, ${cpu_temp})"
+    else
+        echo -n "$cpu_arch x $cpu_cores ($cpu_freq)"
+    fi
 else
     echo -n "$cpu_arch x $cpu_cores"
 fi
+
