@@ -1,0 +1,28 @@
+#!/bin/sh
+
+IEEE_PATH="/sys/class/ieee80211"
+HWMON_PATH="/sys/class/hwmon"
+
+# Cek apakah arsitektur x86_64
+if grep -Eq "x86_64" "/etc/openwrt_release"; then
+    wifi_temp="$(awk '{printf("%.1f°C ", $0 / 1000)}' "$IEEE_PATH"/phy*/device/hwmon*/temp1_input 2>"/dev/null" | awk '$1=$1')"
+    
+    if [ -z "$wifi_temp" ]; then
+        wifi_temp="$(awk '{printf("%.1f°C ", $0 / 1000)}' "$HWMON_PATH"/hwmon*/temp1_input 2>"/dev/null" | awk '$1=$1')"
+    fi
+
+    cpu_temp="$(awk '{printf("%.1f°C", $0 / 1000)}' "/sys/class/thermal/thermal_zone0/temp" 2>"/dev/null")"
+else
+    echo "Unsupported architecture for this script."
+    exit 1
+fi
+
+if [ -n "$cpu_temp" ] && [ -z "$wifi_temp" ]; then
+    echo -n "CPU: $cpu_temp"
+elif [ -z "$cpu_temp" ] && [ -n "$wifi_temp" ]; then
+    echo -n "WiFi: $wifi_temp"
+elif [ -n "$cpu_temp" ] && [ -n "$wifi_temp" ]; then
+    echo -n "CPU: $cpu_temp, WiFi: $wifi_temp"
+else
+    echo -n "No temperature info"
+fi
